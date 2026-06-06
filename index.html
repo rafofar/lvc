@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bingo LVC</title>
+<style>
+body{margin:0;font-family:Arial,sans-serif;background:#f4f6fb}
+header{position:sticky;top:0;background:#8e244d;color:#fff;padding:10px;z-index:1000}
+.controls,.stats,#calledPills{display:flex;flex-wrap:wrap;gap:8px}
+.controls{align-items:center}
+.stats{margin-top:8px;font-weight:bold}
+button{background:#ff9800;color:#fff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+input,select{padding:6px;border-radius:6px}
+.cards{display:flex;flex-wrap:wrap;gap:12px;padding:12px}
+.card{background:#fff;padding:8px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.winner{border:4px solid gold}
+.grid{display:grid;grid-template-columns:repeat(5,42px);gap:3px}
+.cell{width:42px;height:42px;background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.marked{background:#4caf50;color:#fff;font-weight:bold}
+.free{background:#9c27b0;color:#fff}
+.pill{background:#4caf50;color:#fff;padding:4px 10px;border-radius:20px;cursor:pointer}
+#winners{margin-top:8px;color:#ffeb3b;font-weight:bold}
+.keypad{
+    display:grid;
+    grid-template-columns:repeat(3,70px);
+    gap:4px;
+    margin-top:10px;
+}
+
+.keypad button{
+    height:30px;
+    font-size:18px;
+    font-weight:bold;
+    border-radius:6px;
+}
+</style>
+</head>
+<body>
+<script>
+const PRELOADED_CARDS=``;
+</script>
+
+<header>
+<div class="controls">
+<textarea id="cardsInput"></textarea>
+<button onclick="addCards()">Agregar 📋</button>
+<button onclick="clearCards()">Limpiar 📋</button>
+
+<select id="pattern" onchange="updateSelectors();checkWinners();">
+<option value="rowAny">Una fila</option>
+<option value="rowSpecific">Fila específica</option>
+<option value="colAny">Una columna</option>
+<option value="colSpecific">Columna específica</option>
+<option value="borderO">O</option>
+<option value="H">H</option>
+<option value="diag">Diagonal</option>
+<option value="crossX">Cruz X</option>
+<option value="crossPlus">Cruz +</option>
+<option value="L">L</option>
+<option value="C">C</option>
+<option value="full">Apagón</option>
+</select>
+
+<select id="rowSel" onchange="checkWinners()">
+<option value="0">Fila 1</option><option value="1">Fila 2</option>
+<option value="2">Fila 3</option><option value="3">Fila 4</option>
+<option value="4">Fila 5</option>
+</select>
+
+<select id="colSel" onchange="checkWinners()">
+<option value="0">B</option><option value="1">I</option>
+<option value="2">N</option><option value="3">G</option>
+<option value="4">O</option>
+</select>
+
+
+<!-- <button onclick="exportCards()">Exportar</button> 
+<input type="file" onchange="importCards(event)">
+<input id="numInput" type="number" min="1" max="75" placeholder="Número" onkeydown="handleNumberKey(event)">-->
+<input id="numInput" type="number" min="1" max="75" placeholder="Número" onfocus="this.select()" onkeydown="handleNumberKey(event)">
+
+<button onclick="addCalled()">Agregar 🎱</button>
+<!--<button onclick="checkWinners()">Verificar números</button>-->
+<button onclick="toggleKeypad()">
+⌨️ Teclado numérico
+</button>
+<button onclick="resetGame()">Limpiar 🎱</button>
+
+</div>
+
+<div id="keypadPanel" style="display:none;margin-top:10px;">
+
+  <div class="keypad">
+
+    <button onclick="keypadPress('1')">1</button>
+    <button onclick="keypadPress('2')">2</button>
+    <button onclick="keypadPress('3')">3</button>
+
+    <button onclick="keypadPress('4')">4</button>
+    <button onclick="keypadPress('5')">5</button>
+    <button onclick="keypadPress('6')">6</button>
+
+    <button onclick="keypadPress('7')">7</button>
+    <button onclick="keypadPress('8')">8</button>
+    <button onclick="keypadPress('9')">9</button>
+
+    <button onclick="keypadClear()">C</button>
+    <button onclick="keypadPress('0')">0</button>
+    <button onclick="addCalled()">✓</button>
+
+  </div>
+
+</div>
+
+<div class="stats">
+<div>📋 <span id="cardCount">0</span> cartillas</div>
+<div>🎱 <span id="calledCount">0</span> cantados</div>
+<div>🥇 <span id="winnerCount">0</span> ganadores</div>
+</div>
+
+<div id="calledPills"></div>
+<div id="winners">🏆 Ganadores: Ninguno</div>
+</header>
+
+<div id="cards" class="cards"></div>
+
+<script>
+let cards=JSON.parse(localStorage.getItem("bingoCards")||"[]");
+let called=
+JSON.parse(
+ localStorage.getItem("bingoCalled")||"[]"
+);
+
+function numsToGrid(nums){
+ let g=[],k=0;
+ for(let r=0;r<5;r++){g[r]=[];
+ for(let c=0;c<5;c++)g[r][c]=(r===2&&c===2)?"FREE":nums[k++];}
+ return g;
+}
+
+if(cards.length===0 && PRELOADED_CARDS.trim()){
+ PRELOADED_CARDS.trim().split(/\r?\n+/).forEach(line=>{
+  let n=line.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+  if(n.length===24) cards.push(numsToGrid(n));
+ });
+ localStorage.setItem("bingoCards",JSON.stringify(cards));
+}
+
+function save(){localStorage.setItem("bingoCards",JSON.stringify(cards));}
+
+function addCards(){
+
+ let txt = document.getElementById("cardsInput").value;
+ //let txt=prompt("Una línea por cartilla (24 números separados por comas)");
+ if(!txt) return;
+ txt.trim().split(/\r?\n+/).forEach(line=>{
+   let n=line.split(",").map(x=>parseInt(x.trim())).filter(x=>!isNaN(x));
+   if(n.length===24) cards.push(numsToGrid(n));
+ });
+ save(); render();
+}
+function clearCards(){ if(confirm("¿Eliminar todas las cartillas?")){cards=[];save();render();} }
+
+function addCalled(){
+
+ let n=parseInt(numInput.value);
+
+ if(
+   n>=1 &&
+   n<=75 &&
+   !called.includes(n)
+ ){
+    called.push(n);
+    called.sort((a,b)=>a-b);
+
+    localStorage.setItem(
+      "bingoCalled",
+      JSON.stringify(called)
+    );
+
+    render();
+ }
+ 
+ 
+        const input = document.getElementById("numInput");
+
+        input.value = "";
+
+        //input.focus();
+
+        event.preventDefault();
+}
+
+function handleNumberKey(event){
+
+    if(event.key === "Enter"){
+
+        addCalled();
+
+    }
+}
+
+function removeCalled(n){called=called.filter(x=>x!==n);render();}
+function marked(card,r,c){return card[r][c]=="FREE"||called.includes(Number(card[r][c]));}
+
+function allPts(card,pts){return pts.every(([r,c])=>marked(card,r,c));}
+
+function checkPattern(card){
+ let p=pattern.value;
+ if(p=="rowAny"){for(let r=0;r<5;r++){let ok=true;for(let c=0;c<5;c++)if(!marked(card,r,c))ok=false;if(ok)return true;}return false;}
+ if(p=="rowSpecific"){let r=+rowSel.value;for(let c=0;c<5;c++)if(!marked(card,r,c))return false;return true;}
+ if(p=="colAny"){for(let c=0;c<5;c++){let ok=true;for(let r=0;r<5;r++)if(!marked(card,r,c))ok=false;if(ok)return true;}return false;}
+ if(p=="colSpecific"){let c=+colSel.value;for(let r=0;r<5;r++)if(!marked(card,r,c))return false;return true;}
+ if(p=="borderO"){let pts=[];for(let i=0;i<5;i++)pts.push([0,i],[4,i],[i,0],[i,4]);return allPts(card,[...new Map(pts.map(x=>[x+"",x])).values()]);}
+ if(p=="H") return allPts(card,[[0,0],[1,0],[2,0],[3,0],[4,0],[0,4],[1,4],[2,4],[3,4],[4,4],[2,1],[2,2],[2,3]]);
+ if(p=="diag"){let d1=true,d2=true;for(let i=0;i<5;i++){d1&=marked(card,i,i);d2&=marked(card,i,4-i);}return d1||d2;}
+ if(p=="crossX"){for(let i=0;i<5;i++) if(!marked(card,i,i)||!marked(card,i,4-i)) return false; return true;}
+ if(p=="crossPlus"){for(let i=0;i<5;i++) if(!marked(card,2,i)||!marked(card,i,2)) return false; return true;}
+ if(p=="L") return allPts(card,[[0,0],[1,0],[2,0],[3,0],[4,0],[4,1],[4,2],[4,3],[4,4]]);
+ if(p=="C") return allPts(card,[[0,0],[0,1],[0,2],[0,3],[0,4],[1,0],[2,0],[3,0],[4,0],[4,1],[4,2],[4,3],[4,4]]);
+ if(p=="full"){for(let r=0;r<5;r++)for(let c=0;c<5;c++)if(!marked(card,r,c))return false;return true;}
+ return false;
+}
+
+function matches(card){let m=0;for(let r=0;r<5;r++)for(let c=0;c<5;c++)if(marked(card,r,c))m++;return m-1;}
+
+function checkWinners(){
+ let wins=[];
+ document.querySelectorAll(".card").forEach(x=>x.classList.remove("winner"));
+ cards.forEach((c,i)=>{
+   if(checkPattern(c)){wins.push("#"+(i+1)); let el=document.getElementById("card"+i); if(el)el.classList.add("winner");}
+ });
+ winnerCount.textContent=wins.length;
+ winners.textContent="🏆 Ganadores: "+(wins.length?wins.join(", "):"Ninguno");
+}
+
+function updateSelectors(){
+ rowSel.disabled=pattern.value!="rowSpecific";
+ colSel.disabled=pattern.value!="colSpecific";
+}
+
+function render(){
+
+ const cardsContainer = document.getElementById("cards");
+
+ if(cards.length===0){
+   cardsContainer.innerHTML = `
+      <div style="
+        width:100%;
+        text-align:center;
+        padding:40px;
+        color:#666;
+        font-size:20px;">
+        No hay cartillas cargadas.<br><br>
+        Presione <b>Agregar cartillas</b> para comenzar.
+      </div>`;
+ } else {
+
+   cardsContainer.innerHTML="";
+
+   cards.forEach((card,i)=>{
+
+      let h=`
+      <div class="card" id="card${i}">
+        <b>Cartilla #${i+1}</b><br>
+        Coincidencias: ${matches(card)}/24
+        <div class="grid">
+      `;
+
+      card.forEach(r=>r.forEach(v=>{
+
+         let cls="";
+
+         if(v==="FREE"){
+            cls="free marked";
+         }else if(called.includes(Number(v))){
+            cls="marked";
+         }
+
+         h+=`<div class="cell ${cls}">${v}</div>`;
+      }));
+
+      h+=`</div></div>`;
+
+      cardsContainer.innerHTML+=h;
+   });
+ }
+
+ calledPills.innerHTML="";
+
+ called.forEach(n=>{
+    let s=document.createElement("span");
+    s.className="pill";
+    s.textContent=n+" ✕";
+    s.onclick=()=>removeCalled(n);
+    calledPills.appendChild(s);
+ });
+
+ cardCount.textContent=cards.length;
+ calledCount.textContent=called.length;
+
+ updateSelectors();
+ checkWinners();
+}
+
+function toggleKeypad(){
+
+    const panel =
+        document.getElementById("keypadPanel");
+
+    panel.style.display =
+        panel.style.display==="none"
+        ? "block"
+        : "none";
+}
+
+function keypadPress(value){
+
+    const input =
+        document.getElementById("numInput");
+
+    input.value += value;
+}
+
+function keypadClear(){
+
+    document.getElementById("numInput").value="";
+}
+
+function resetGame(){
+	called=[];
+	localStorage.removeItem("bingoCalled");
+	render();
+}
+function exportCards(){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(cards)]));a.download="cartillas.json";a.click();}
+function importCards(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{cards=JSON.parse(r.result);save();render();};r.readAsText(f);}
+
+render();
+</script>
+</body></html>
